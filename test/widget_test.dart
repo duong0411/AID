@@ -12,6 +12,7 @@ void main() {
     await tester.pumpWidget(const AidApp(autoConnect: false));
     expect(find.text('Nhịp tim'), findsOneWidget);
     expect(find.text('Lực'), findsOneWidget);
+    await tester.scrollUntilVisible(find.text('Điện thế'), 300);
     expect(find.text('SpO2'), findsOneWidget);
     expect(find.text('Điện thế'), findsOneWidget);
   });
@@ -26,8 +27,9 @@ void main() {
       home: HomePage(controller: controller),
     ));
     expect(find.text('72'), findsOneWidget);
-    expect(find.text('98'), findsOneWidget);
     expect(find.text('CANH BAO LUC'), findsWidgets);
+    await tester.scrollUntilVisible(find.text('98'), 300);
+    expect(find.text('98'), findsOneWidget);
     controller.dispose();
   });
 }

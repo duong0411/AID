@@ -41,90 +41,96 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final snap = c.snapshot;
     return Scaffold(
+      backgroundColor: const Color(0xFFF3F6FA),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+          padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
           children: [
-            _topBar(snap),
+            _header(snap),
             const SizedBox(height: 14),
             if (snap != null && snap.alarm) ...[
               _alarmBanner(snap),
               const SizedBox(height: 12),
             ],
-            GridView.count(
-              crossAxisCount: 2,
-              shrinkWrap: true,
-              physics: const NeverScrollableScrollPhysics(),
-              mainAxisSpacing: 12,
-              crossAxisSpacing: 12,
-              childAspectRatio: 0.78,
-              children: [
-                _SensorCard(
-                  title: 'Nhịp tim',
-                  value: snap == null || snap.hr <= 0 ? '--' : '${snap.hr}',
-                  unit: 'bpm',
-                  detail: snap == null
-                      ? 'Ngưỡng 50–120'
-                      : 'ADC ${snap.hrAdc} · ngưỡng ${snap.hrMin}–${snap.hrMax}',
-                  status: _hrStatus(snap),
-                  alarm: snap?.alarmHr ?? false,
-                  color: const Color(0xFFFF6B7A),
-                  icon: Icons.favorite_rounded,
-                  fraction: snap == null || snap.hr <= 0 ? 0 : (snap.hr / 180).clamp(0, 1),
-                  samples: c.hrTrace,
-                ),
-                _SensorCard(
-                  title: 'Lực',
-                  value: snap == null ? '--' : snap.force.toStringAsFixed(0),
-                  unit: '%',
-                  detail: snap == null
-                      ? 'Ngưỡng 60%'
-                      : '${snap.grams.toStringAsFixed(0)} g · ngưỡng ${snap.forceMax}%',
-                  status: snap == null ? 'Chờ mạch' : (snap.alarmForce ? 'Vượt ngưỡng' : 'Ổn'),
-                  alarm: snap?.alarmForce ?? false,
-                  color: const Color(0xFFFFC857),
-                  icon: Icons.compress_rounded,
-                  fraction: snap == null ? 0 : (snap.force / 100).clamp(0, 1),
-                  samples: c.forceTrace,
-                ),
-                _SensorCard(
-                  title: 'SpO2',
-                  value: _spo2Value(snap),
-                  unit: snap != null && snap.maxOnline && snap.finger && snap.spo2 > 0 ? '%' : '',
-                  detail: _spo2Detail(snap),
-                  status: _spo2Status(snap),
-                  alarm: snap?.alarmSpo2 ?? false,
-                  color: const Color(0xFF5CE1E6),
-                  icon: Icons.bloodtype_rounded,
-                  fraction: snap == null || snap.spo2 <= 0 ? 0 : (snap.spo2 / 100).clamp(0, 1),
-                  samples: c.spo2Trace,
-                ),
-                _SensorCard(
-                  title: 'Điện thế',
-                  value: snap == null ? '--' : snap.piezo.toStringAsFixed(0),
-                  unit: '%',
-                  detail: snap == null
-                      ? 'Ngưỡng 50%'
-                      : '${snap.volt.toStringAsFixed(2)} V · ngưỡng ${snap.piezoMax}%',
-                  status: snap == null ? 'Chờ mạch' : (snap.alarmPiezo ? 'Vượt ngưỡng' : 'Ổn'),
-                  alarm: snap?.alarmPiezo ?? false,
-                  color: const Color(0xFFC4B5FD),
-                  icon: Icons.graphic_eq_rounded,
-                  fraction: snap == null ? 0 : (snap.piezo / 100).clamp(0, 1),
-                  samples: c.piezoTrace,
-                ),
-              ],
+            const _SectionTitle('Biểu đồ cảm biến'),
+            const SizedBox(height: 8),
+            _ChartCard(
+              title: 'Nhịp tim',
+              caption: 'Pulse · GPIO 33',
+              value: snap == null || snap.hr <= 0 ? '--' : '${snap.hr}',
+              unit: 'bpm',
+              detail: snap == null
+                  ? 'Ngưỡng an toàn 50–120 bpm'
+                  : 'ADC ${snap.hrAdc} · ngưỡng ${snap.hrMin}–${snap.hrMax} bpm',
+              status: _hrStatus(snap),
+              alarm: snap?.alarmHr ?? false,
+              color: const Color(0xFFE11D48),
+              icon: Icons.favorite_rounded,
+              samples: c.hrTrace,
+              minY: 40,
+              maxY: 180,
+              low: snap?.hrMin.toDouble() ?? 50,
+              high: snap?.hrMax.toDouble() ?? 120,
             ),
-            const SizedBox(height: 16),
-            const _SectionTitle('Ngưỡng trên mạch'),
+            _ChartCard(
+              title: 'Lực',
+              caption: 'Force FSR · GPIO 32',
+              value: snap == null ? '--' : snap.force.toStringAsFixed(0),
+              unit: '%',
+              detail: snap == null
+                  ? 'Ngưỡng 60%'
+                  : '${snap.grams.toStringAsFixed(0)} g · ngưỡng ${snap.forceMax}%',
+              status: snap == null ? 'Chờ mạch' : (snap.alarmForce ? 'Vượt ngưỡng' : 'Ổn'),
+              alarm: snap?.alarmForce ?? false,
+              color: const Color(0xFFD97706),
+              icon: Icons.compress_rounded,
+              samples: c.forceTrace,
+              minY: 0,
+              maxY: 100,
+              high: snap?.forceMax.toDouble() ?? 60,
+            ),
+            _ChartCard(
+              title: 'SpO2',
+              caption: 'MAX3010x · GPIO 26/25',
+              value: _spo2Value(snap),
+              unit: '%',
+              detail: _spo2Detail(snap),
+              status: _spo2Status(snap),
+              alarm: snap?.alarmSpo2 ?? false,
+              color: const Color(0xFF0891B2),
+              icon: Icons.bloodtype_rounded,
+              samples: c.spo2Trace,
+              minY: 70,
+              maxY: 100,
+              low: snap?.spo2Min.toDouble() ?? 92,
+            ),
+            _ChartCard(
+              title: 'Điện thế',
+              caption: 'Piezo · GPIO 35',
+              value: snap == null ? '--' : snap.piezo.toStringAsFixed(0),
+              unit: '%',
+              detail: snap == null
+                  ? 'Ngưỡng 50%'
+                  : '${snap.volt.toStringAsFixed(2)} V · ngưỡng ${snap.piezoMax}%',
+              status: snap == null ? 'Chờ mạch' : (snap.alarmPiezo ? 'Vượt ngưỡng' : 'Ổn'),
+              alarm: snap?.alarmPiezo ?? false,
+              color: const Color(0xFF7C3AED),
+              icon: Icons.graphic_eq_rounded,
+              samples: c.piezoTrace,
+              minY: 0,
+              maxY: 100,
+              high: snap?.piezoMax.toDouble() ?? 50,
+            ),
+            const SizedBox(height: 4),
+            const _SectionTitle('Ngưỡng cảnh báo'),
             const SizedBox(height: 8),
             _thresholds(snap),
             const SizedBox(height: 16),
-            const _SectionTitle('Màn OLED'),
+            const _SectionTitle('Màn OLED trên mạch'),
             const SizedBox(height: 8),
             _oledCard(snap),
             const SizedBox(height: 16),
-            const _SectionTitle('Kết nối mạch'),
+            const _SectionTitle('Kết nối MQTT'),
             const SizedBox(height: 8),
             _connectCard(),
           ],
@@ -133,28 +139,42 @@ class _HomePageState extends State<HomePage> {
     );
   }
 
-  Widget _topBar(AidSnapshot? snap) {
+  Widget _header(AidSnapshot? snap) {
     final live = snap != null;
-    return Row(
-      children: [
-        const Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(20),
+        gradient: const LinearGradient(
+          colors: [Color(0xFF0F3D4C), Color(0xFF0F766E)],
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'SMART FIRST AID',
+            style: TextStyle(color: Colors.white, fontSize: 20, fontWeight: FontWeight.w800, letterSpacing: 0.4),
+          ),
+          const SizedBox(height: 4),
+          const Text(
+            'Đồ án STEM · Thiết bị sơ cứu thông minh',
+            style: TextStyle(color: Color(0xFFD7F3EF), fontSize: 13),
+          ),
+          const SizedBox(height: 12),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
             children: [
-              Text('AID', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
-              SizedBox(height: 2),
-              Text(
-                'Thông số cảm biến',
-                style: TextStyle(color: Color(0xFF8EAEA0), fontSize: 13),
-              ),
+              _pill(c.connected ? 'MQTT đã nối' : 'Mất MQTT', c.connected),
+              _pill(live ? 'Mạch ${snap.id}' : 'Chờ mạch', live),
+              if (live) _pill(snap.wifi ? snap.ip : 'Mất WiFi', snap.wifi),
             ],
           ),
-        ),
-        _pill(
-          live ? 'Mạch ${snap.id}' : (c.connected ? 'MQTT' : 'Mất MQTT'),
-          live || c.connected,
-        ),
-      ],
+        ],
+      ),
     );
   }
 
@@ -163,18 +183,18 @@ class _HomePageState extends State<HomePage> {
       width: double.infinity,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF3A1418),
+        color: const Color(0xFFFFF1F2),
         borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: const Color(0xFFFF6B7A)),
+        border: Border.all(color: const Color(0xFFFB7185)),
       ),
       child: Row(
         children: [
-          const Icon(Icons.warning_amber_rounded, color: Color(0xFFFF6B7A)),
+          const Icon(Icons.warning_amber_rounded, color: Color(0xFFE11D48)),
           const SizedBox(width: 10),
           Expanded(
             child: Text(
               snap.reason.isEmpty ? 'Cảnh báo ngưỡng' : snap.reason,
-              style: const TextStyle(fontWeight: FontWeight.w700),
+              style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF9F1239)),
             ),
           ),
         ],
@@ -184,9 +204,9 @@ class _HomePageState extends State<HomePage> {
 
   Widget _thresholds(AidSnapshot? snap) {
     final items = [
-      ('Nhịp', snap == null ? '50–120' : '${snap.hrMin}–${snap.hrMax}'),
+      ('Nhịp', snap == null ? '50–120 bpm' : '${snap.hrMin}–${snap.hrMax} bpm'),
       ('Lực', snap == null ? '60%' : '${snap.forceMax}%'),
-      ('SpO2', snap == null ? '< 92%' : '< ${snap.spo2Min}%'),
+      ('SpO2', snap == null ? 'trên 92%' : 'trên ${snap.spo2Min}%'),
       ('Piezo', snap == null ? '50%' : '${snap.piezoMax}%'),
       ('Còi', snap == null ? '--' : (snap.buzzerOn ? (snap.mute ? 'Tắt tiếng' : 'Bật') : 'Tắt')),
     ];
@@ -198,10 +218,11 @@ class _HomePageState extends State<HomePage> {
           Container(
             padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
             decoration: BoxDecoration(
-              color: const Color(0xFF12201A),
+              color: Colors.white,
               borderRadius: BorderRadius.circular(20),
+              border: Border.all(color: const Color(0xFFE2E8F0)),
             ),
-            child: Text('${item.$1}  ${item.$2}'),
+            child: Text('${item.$1}  ${item.$2}', style: const TextStyle(color: Color(0xFF0F172A), fontSize: 13)),
           ),
       ],
     );
@@ -223,9 +244,8 @@ class _HomePageState extends State<HomePage> {
       width: double.infinity,
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
-        color: Colors.black,
+        color: const Color(0xFF07110E),
         borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: const Color(0xFF24352C)),
       ),
       child: DefaultTextStyle(
         style: const TextStyle(
@@ -246,17 +266,25 @@ class _HomePageState extends State<HomePage> {
     return Container(
       padding: const EdgeInsets.all(12),
       decoration: BoxDecoration(
-        color: const Color(0xFF12201A),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFFE2E8F0)),
       ),
       child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          const Text(
+            'mqtt.duynguyen.io.vn',
+            style: TextStyle(color: Color(0xFF64748B), fontSize: 12),
+          ),
+          const SizedBox(height: 8),
           Row(
             children: [
               Expanded(
                 child: TextField(
                   controller: _chip,
                   textCapitalization: TextCapitalization.characters,
+                  style: const TextStyle(color: Color(0xFF0F172A)),
                   decoration: const InputDecoration(
                     labelText: 'Mã mạch',
                     hintText: '6 ký tự trên OLED',
@@ -275,29 +303,23 @@ class _HomePageState extends State<HomePage> {
           ),
           if (c.discovered.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Wrap(
-                spacing: 8,
-                children: [
-                  for (final id in c.discovered)
-                    ActionChip(
-                      label: Text(id),
-                      onPressed: () {
-                        _chip.text = id;
-                        c.setChip(id);
-                      },
-                    ),
-                ],
-              ),
+            Wrap(
+              spacing: 8,
+              children: [
+                for (final id in c.discovered)
+                  ActionChip(
+                    label: Text(id),
+                    onPressed: () {
+                      _chip.text = id;
+                      c.setChip(id);
+                    },
+                  ),
+              ],
             ),
           ],
           if (c.lastError.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: Text(c.lastError, style: const TextStyle(color: Color(0xFFFF8A80))),
-            ),
+            Text(c.lastError, style: const TextStyle(color: Color(0xFFE11D48))),
           ],
           const SizedBox(height: 10),
           Row(
@@ -309,6 +331,7 @@ class _HomePageState extends State<HomePage> {
                     child: OutlinedButton(
                       style: OutlinedButton.styleFrom(
                         padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 12),
+                        foregroundColor: const Color(0xFF0F3D4C),
                         minimumSize: Size.zero,
                         tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                       ),
@@ -327,9 +350,10 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-class _SensorCard extends StatelessWidget {
-  const _SensorCard({
+class _ChartCard extends StatelessWidget {
+  const _ChartCard({
     required this.title,
+    required this.caption,
     required this.value,
     required this.unit,
     required this.detail,
@@ -337,11 +361,15 @@ class _SensorCard extends StatelessWidget {
     required this.alarm,
     required this.color,
     required this.icon,
-    required this.fraction,
     required this.samples,
+    required this.minY,
+    required this.maxY,
+    this.low,
+    this.high,
   });
 
   final String title;
+  final String caption;
   final String value;
   final String unit;
   final String detail;
@@ -349,70 +377,83 @@ class _SensorCard extends StatelessWidget {
   final bool alarm;
   final Color color;
   final IconData icon;
-  final double fraction;
   final List<double> samples;
+  final double minY;
+  final double maxY;
+  final double? low;
+  final double? high;
 
   @override
   Widget build(BuildContext context) {
-    final accent = alarm ? const Color(0xFFFF6B7A) : color;
     final waiting = value == '--';
-    final statusColor = alarm ? const Color(0xFFFF6B7A) : (waiting ? const Color(0xFF8EAEA0) : color);
+    final statusColor = alarm
+        ? const Color(0xFFE11D48)
+        : (waiting ? const Color(0xFF64748B) : const Color(0xFF0F766E));
     return Container(
-      padding: const EdgeInsets.all(12),
+      margin: const EdgeInsets.only(bottom: 12),
+      padding: const EdgeInsets.fromLTRB(14, 14, 14, 12),
       decoration: BoxDecoration(
-        color: const Color(0xFF12201A),
+        color: Colors.white,
         borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: alarm ? const Color(0xFFFF6B7A) : const Color(0xFF1E3329)),
+        border: Border.all(color: alarm ? const Color(0xFFFB7185) : const Color(0xFFE2E8F0)),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
             children: [
-              Icon(icon, color: accent, size: 18),
+              Icon(icon, color: color, size: 18),
               const SizedBox(width: 6),
               Expanded(
-                child: Text(title, style: const TextStyle(color: Color(0xFFB7D0C4), fontSize: 13)),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(title, style: const TextStyle(fontWeight: FontWeight.w800, color: Color(0xFF0F172A))),
+                    Text(caption, style: const TextStyle(fontSize: 11, color: Color(0xFF64748B))),
+                  ],
+                ),
+              ),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                decoration: BoxDecoration(
+                  color: statusColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(20),
+                ),
+                child: Text(status, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: statusColor)),
               ),
             ],
           ),
-          const Spacer(),
-          FittedBox(
-            fit: BoxFit.scaleDown,
-            alignment: Alignment.centerLeft,
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.end,
-              children: [
-                Text(value, style: TextStyle(fontSize: 40, fontWeight: FontWeight.w800, color: accent, height: 1)),
-                if (unit.isNotEmpty) ...[
-                  const SizedBox(width: 4),
-                  Padding(
-                    padding: const EdgeInsets.only(bottom: 4),
-                    child: Text(unit, style: const TextStyle(color: Color(0xFF8EAEA0), fontSize: 16)),
-                  ),
-                ],
-              ],
-            ),
+          const SizedBox(height: 10),
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Text(
+                value,
+                style: TextStyle(fontSize: 36, fontWeight: FontWeight.w800, color: color, height: 1),
+              ),
+              const SizedBox(width: 6),
+              Padding(
+                padding: const EdgeInsets.only(bottom: 4),
+                child: Text(unit, style: const TextStyle(fontSize: 16, color: Color(0xFF64748B))),
+              ),
+            ],
           ),
-          const SizedBox(height: 8),
-          ClipRRect(
-            borderRadius: BorderRadius.circular(4),
-            child: LinearProgressIndicator(
-              value: fraction.toDouble(),
-              minHeight: 4,
-              backgroundColor: const Color(0xFF24352C),
-              color: accent,
-            ),
-          ),
-          const SizedBox(height: 8),
-          Text(detail, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Color(0xFF8EAEA0))),
           const SizedBox(height: 4),
-          Text(status, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: statusColor)),
-          const SizedBox(height: 6),
+          Text(detail, style: const TextStyle(fontSize: 12, color: Color(0xFF475569))),
+          const SizedBox(height: 10),
           SizedBox(
-            height: 28,
+            height: 132,
             width: double.infinity,
-            child: CustomPaint(painter: _Sparkline(samples, accent)),
+            child: CustomPaint(
+              painter: _StemChart(
+                samples: samples,
+                color: color,
+                minY: minY,
+                maxY: maxY,
+                low: low,
+                high: high,
+              ),
+            ),
           ),
         ],
       ),
@@ -420,37 +461,122 @@ class _SensorCard extends StatelessWidget {
   }
 }
 
-class _Sparkline extends CustomPainter {
-  _Sparkline(this.samples, this.color);
+class _StemChart extends CustomPainter {
+  _StemChart({
+    required this.samples,
+    required this.color,
+    required this.minY,
+    required this.maxY,
+    this.low,
+    this.high,
+  });
+
   final List<double> samples;
   final Color color;
+  final double minY;
+  final double maxY;
+  final double? low;
+  final double? high;
 
   @override
   void paint(Canvas canvas, Size size) {
-    if (samples.length < 2) return;
-    var peak = 1.0;
-    for (final v in samples) {
-      if (v > peak) peak = v;
+    const axisW = 32.0;
+    final plot = Rect.fromLTWH(axisW, 4, size.width - axisW - 4, size.height - 8);
+    final bg = RRect.fromRectAndRadius(plot, const Radius.circular(10));
+    canvas.drawRRect(bg, Paint()..color = const Color(0xFFF8FAFC));
+    canvas.drawRRect(
+      bg,
+      Paint()
+        ..color = const Color(0xFFE2E8F0)
+        ..style = PaintingStyle.stroke,
+    );
+
+    final grid = Paint()
+      ..color = const Color(0xFFE2E8F0)
+      ..strokeWidth = 1;
+    for (var i = 1; i <= 3; i++) {
+      final y = plot.top + plot.height * i / 4;
+      canvas.drawLine(Offset(plot.left, y), Offset(plot.right, y), grid);
     }
-    final paint = Paint()
-      ..color = color
-      ..strokeWidth = 1.6
-      ..style = PaintingStyle.stroke;
-    final path = Path();
-    for (var i = 0; i < samples.length; i++) {
-      final x = size.width * i / (samples.length - 1);
-      final y = size.height - (samples[i].clamp(0, peak) / peak) * (size.height - 2);
-      if (i == 0) {
-        path.moveTo(x, y);
-      } else {
-        path.lineTo(x, y);
+
+    _axisLabel(canvas, maxY.toStringAsFixed(0), plot.top, axisW);
+    _axisLabel(canvas, minY.toStringAsFixed(0), plot.bottom - 12, axisW);
+
+    void guide(double? value) {
+      if (value == null) return;
+      final y = _y(value, plot);
+      final paint = Paint()
+        ..color = const Color(0xFFF43F5E)
+        ..strokeWidth = 1;
+      for (double x = plot.left; x < plot.right; x += 7) {
+        canvas.drawLine(Offset(x, y), Offset(x + 4, y), paint);
       }
     }
-    canvas.drawPath(path, paint);
+
+    guide(low);
+    guide(high);
+
+    if (samples.isEmpty) {
+      _centerNote(canvas, plot, 'Chưa có mẫu');
+      return;
+    }
+
+    final points = samples.length == 1 ? [samples.first, samples.first] : samples;
+    final path = Path();
+    final fill = Path();
+    for (var i = 0; i < points.length; i++) {
+      final x = plot.left + plot.width * i / (points.length - 1);
+      final y = _y(points[i], plot);
+      if (i == 0) {
+        path.moveTo(x, y);
+        fill.moveTo(x, plot.bottom);
+        fill.lineTo(x, y);
+      } else {
+        path.lineTo(x, y);
+        fill.lineTo(x, y);
+      }
+    }
+    fill.lineTo(plot.right, plot.bottom);
+    fill.close();
+    canvas.save();
+    canvas.clipRRect(bg);
+    canvas.drawPath(fill, Paint()..color = color.withValues(alpha: 0.18));
+    canvas.drawPath(
+      path,
+      Paint()
+        ..color = color
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 2.2
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round,
+    );
+    canvas.restore();
+  }
+
+  double _y(double value, Rect plot) {
+    final span = (maxY - minY).abs() < 0.001 ? 1.0 : (maxY - minY);
+    final t = ((value - minY) / span).clamp(0.0, 1.0);
+    return plot.bottom - t * plot.height;
+  }
+
+  void _axisLabel(Canvas canvas, String text, double top, double width) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 10)),
+      textDirection: TextDirection.ltr,
+    )..layout(maxWidth: width);
+    painter.paint(canvas, Offset(0, top));
+  }
+
+  void _centerNote(Canvas canvas, Rect plot, String text) {
+    final painter = TextPainter(
+      text: TextSpan(text: text, style: const TextStyle(color: Color(0xFF94A3B8), fontSize: 12)),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    painter.paint(canvas, Offset(plot.center.dx - painter.width / 2, plot.center.dy - painter.height / 2));
   }
 
   @override
-  bool shouldRepaint(covariant _Sparkline oldDelegate) => true;
+  bool shouldRepaint(covariant _StemChart oldDelegate) => true;
 }
 
 class _SectionTitle extends StatelessWidget {
@@ -459,7 +585,10 @@ class _SectionTitle extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Text(text, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFFD7EBE1)));
+    return Text(
+      text,
+      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: Color(0xFF0F172A)),
+    );
   }
 }
 
@@ -467,15 +596,15 @@ Widget _pill(String text, bool on) {
   return Container(
     padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
     decoration: BoxDecoration(
-      color: const Color(0xFF12201A),
+      color: Colors.white.withValues(alpha: 0.16),
       borderRadius: BorderRadius.circular(20),
     ),
     child: Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Icon(Icons.circle, size: 8, color: on ? const Color(0xFF3DDC97) : const Color(0xFFFF8A80)),
+        Icon(Icons.circle, size: 8, color: on ? const Color(0xFF86EFAC) : const Color(0xFFFDA4AF)),
         const SizedBox(width: 6),
-        Text(text, style: const TextStyle(fontSize: 12)),
+        Text(text, style: const TextStyle(fontSize: 12, color: Colors.white)),
       ],
     ),
   );
@@ -495,10 +624,10 @@ String _spo2Value(AidSnapshot? snap) {
 }
 
 String _spo2Detail(AidSnapshot? snap) {
-  if (snap == null) return 'Ngưỡng dưới 92%';
+  if (snap == null) return 'Ngưỡng trên 92%';
   if (!snap.maxOnline) return 'Chưa thấy IC MAX3010x';
-  if (!snap.finger) return 'Chưa đặt tay';
-  return '${snap.spo2Hr.toStringAsFixed(0)} bpm · ngưỡng < ${snap.spo2Min}%';
+  if (!snap.finger) return 'Chưa đặt tay lên cảm biến';
+  return '${snap.spo2Hr.toStringAsFixed(0)} bpm · ngưỡng trên ${snap.spo2Min}%';
 }
 
 String _spo2Status(AidSnapshot? snap) {

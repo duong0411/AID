@@ -9,7 +9,7 @@ void main() {
   SystemChrome.setSystemUIOverlayStyle(
     const SystemUiOverlayStyle(
       statusBarColor: Colors.transparent,
-      statusBarIconBrightness: Brightness.light,
+      statusBarIconBrightness: Brightness.dark,
     ),
   );
   runApp(const AidApp());
@@ -45,14 +45,14 @@ class _AidAppState extends State<AidApp> {
       title: 'AID',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
-        brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF07110E),
-        colorScheme: const ColorScheme.dark(
-          primary: Color(0xFF3DDC97),
-          surface: Color(0xFF12201A),
+        brightness: Brightness.light,
+        scaffoldBackgroundColor: const Color(0xFFF3F6FA),
+        colorScheme: ColorScheme.fromSeed(
+          seedColor: const Color(0xFF0F766E),
+          brightness: Brightness.light,
         ),
         appBarTheme: const AppBarTheme(
-          backgroundColor: Color(0xFF07110E),
+          backgroundColor: Color(0xFFF3F6FA),
           elevation: 0,
           scrolledUnderElevation: 0,
         ),

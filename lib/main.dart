@@ -46,10 +46,15 @@ class _AidAppState extends State<AidApp> {
       debugShowCheckedModeBanner: false,
       theme: ThemeData(
         brightness: Brightness.dark,
-        scaffoldBackgroundColor: const Color(0xFF101612),
+        scaffoldBackgroundColor: const Color(0xFF07110E),
         colorScheme: const ColorScheme.dark(
           primary: Color(0xFF3DDC97),
-          surface: Color(0xFF18211C),
+          surface: Color(0xFF12201A),
+        ),
+        appBarTheme: const AppBarTheme(
+          backgroundColor: Color(0xFF07110E),
+          elevation: 0,
+          scrolledUnderElevation: 0,
         ),
         fontFamily: 'Roboto',
       ),

@@ -14,8 +14,6 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final _chip = TextEditingController();
-  int _view = 0;
-  bool _follow = true;
 
   AidController get c => widget.controller;
 
@@ -35,13 +33,7 @@ class _HomePageState extends State<HomePage> {
 
   void _onDevice() {
     if (!mounted) return;
-    if (_chip.text != c.chipId && _chip.text.isEmpty) {
-      _chip.text = c.chipId;
-    }
-    final snap = c.snapshot;
-    if (_follow && snap != null && _view != snap.screen) {
-      _view = snap.screen;
-    }
+    if (_chip.text.isEmpty && c.chipId.isNotEmpty) _chip.text = c.chipId;
     setState(() {});
   }
 
@@ -49,24 +41,216 @@ class _HomePageState extends State<HomePage> {
   Widget build(BuildContext context) {
     final snap = c.snapshot;
     return Scaffold(
-      appBar: AppBar(
-        backgroundColor: const Color(0xFF18211C),
-        title: const Text('AID'),
-        actions: [
-          Padding(
-            padding: const EdgeInsets.only(right: 12),
-            child: Center(child: _dot(c.connected, c.connected ? 'MQTT' : 'Mat MQTT')),
+      body: SafeArea(
+        child: ListView(
+          padding: const EdgeInsets.fromLTRB(16, 8, 16, 28),
+          children: [
+            _topBar(snap),
+            const SizedBox(height: 14),
+            if (snap != null && snap.alarm) ...[
+              _alarmBanner(snap),
+              const SizedBox(height: 12),
+            ],
+            GridView.count(
+              crossAxisCount: 2,
+              shrinkWrap: true,
+              physics: const NeverScrollableScrollPhysics(),
+              mainAxisSpacing: 12,
+              crossAxisSpacing: 12,
+              childAspectRatio: 0.78,
+              children: [
+                _SensorCard(
+                  title: 'Nhịp tim',
+                  value: snap == null || snap.hr <= 0 ? '--' : '${snap.hr}',
+                  unit: 'bpm',
+                  detail: snap == null
+                      ? 'Ngưỡng 50–120'
+                      : 'ADC ${snap.hrAdc} · ngưỡng ${snap.hrMin}–${snap.hrMax}',
+                  status: _hrStatus(snap),
+                  alarm: snap?.alarmHr ?? false,
+                  color: const Color(0xFFFF6B7A),
+                  icon: Icons.favorite_rounded,
+                  fraction: snap == null || snap.hr <= 0 ? 0 : (snap.hr / 180).clamp(0, 1),
+                  samples: c.hrTrace,
+                ),
+                _SensorCard(
+                  title: 'Lực',
+                  value: snap == null ? '--' : snap.force.toStringAsFixed(0),
+                  unit: '%',
+                  detail: snap == null
+                      ? 'Ngưỡng 60%'
+                      : '${snap.grams.toStringAsFixed(0)} g · ngưỡng ${snap.forceMax}%',
+                  status: snap == null ? 'Chờ mạch' : (snap.alarmForce ? 'Vượt ngưỡng' : 'Ổn'),
+                  alarm: snap?.alarmForce ?? false,
+                  color: const Color(0xFFFFC857),
+                  icon: Icons.compress_rounded,
+                  fraction: snap == null ? 0 : (snap.force / 100).clamp(0, 1),
+                  samples: c.forceTrace,
+                ),
+                _SensorCard(
+                  title: 'SpO2',
+                  value: _spo2Value(snap),
+                  unit: snap != null && snap.maxOnline && snap.finger && snap.spo2 > 0 ? '%' : '',
+                  detail: _spo2Detail(snap),
+                  status: _spo2Status(snap),
+                  alarm: snap?.alarmSpo2 ?? false,
+                  color: const Color(0xFF5CE1E6),
+                  icon: Icons.bloodtype_rounded,
+                  fraction: snap == null || snap.spo2 <= 0 ? 0 : (snap.spo2 / 100).clamp(0, 1),
+                  samples: c.spo2Trace,
+                ),
+                _SensorCard(
+                  title: 'Điện thế',
+                  value: snap == null ? '--' : snap.piezo.toStringAsFixed(0),
+                  unit: '%',
+                  detail: snap == null
+                      ? 'Ngưỡng 50%'
+                      : '${snap.volt.toStringAsFixed(2)} V · ngưỡng ${snap.piezoMax}%',
+                  status: snap == null ? 'Chờ mạch' : (snap.alarmPiezo ? 'Vượt ngưỡng' : 'Ổn'),
+                  alarm: snap?.alarmPiezo ?? false,
+                  color: const Color(0xFFC4B5FD),
+                  icon: Icons.graphic_eq_rounded,
+                  fraction: snap == null ? 0 : (snap.piezo / 100).clamp(0, 1),
+                  samples: c.piezoTrace,
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            const _SectionTitle('Ngưỡng trên mạch'),
+            const SizedBox(height: 8),
+            _thresholds(snap),
+            const SizedBox(height: 16),
+            const _SectionTitle('Màn OLED'),
+            const SizedBox(height: 8),
+            _oledCard(snap),
+            const SizedBox(height: 16),
+            const _SectionTitle('Kết nối mạch'),
+            const SizedBox(height: 8),
+            _connectCard(),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _topBar(AidSnapshot? snap) {
+    final live = snap != null;
+    return Row(
+      children: [
+        const Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('AID', style: TextStyle(fontSize: 22, fontWeight: FontWeight.w800)),
+              SizedBox(height: 2),
+              Text(
+                'Thông số cảm biến',
+                style: TextStyle(color: Color(0xFF8EAEA0), fontSize: 13),
+              ),
+            ],
+          ),
+        ),
+        _pill(
+          live ? 'Mạch ${snap.id}' : (c.connected ? 'MQTT' : 'Mất MQTT'),
+          live || c.connected,
+        ),
+      ],
+    );
+  }
+
+  Widget _alarmBanner(AidSnapshot snap) {
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF3A1418),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(color: const Color(0xFFFF6B7A)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.warning_amber_rounded, color: Color(0xFFFF6B7A)),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              snap.reason.isEmpty ? 'Cảnh báo ngưỡng' : snap.reason,
+              style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
           ),
         ],
       ),
-      body: ListView(
-        padding: const EdgeInsets.fromLTRB(16, 12, 16, 28),
-        children: [
-          const Text(
-            'mqtt.duynguyen.io.vn',
-            style: TextStyle(color: Color(0xFF8FB9A4)),
+    );
+  }
+
+  Widget _thresholds(AidSnapshot? snap) {
+    final items = [
+      ('Nhịp', snap == null ? '50–120' : '${snap.hrMin}–${snap.hrMax}'),
+      ('Lực', snap == null ? '60%' : '${snap.forceMax}%'),
+      ('SpO2', snap == null ? '< 92%' : '< ${snap.spo2Min}%'),
+      ('Piezo', snap == null ? '50%' : '${snap.piezoMax}%'),
+      ('Còi', snap == null ? '--' : (snap.buzzerOn ? (snap.mute ? 'Tắt tiếng' : 'Bật') : 'Tắt')),
+    ];
+    return Wrap(
+      spacing: 8,
+      runSpacing: 8,
+      children: [
+        for (final item in items)
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+            decoration: BoxDecoration(
+              color: const Color(0xFF12201A),
+              borderRadius: BorderRadius.circular(20),
+            ),
+            child: Text('${item.$1}  ${item.$2}'),
           ),
-          const SizedBox(height: 10),
+      ],
+    );
+  }
+
+  Widget _oledCard(AidSnapshot? snap) {
+    final lines = snap == null
+        ? const ['Chưa nhận dữ liệu từ mạch.', 'Mã chip hiện trên OLED lúc bật nguồn.']
+        : [
+            snap.title.isEmpty ? snap.screenName : snap.title,
+            'Trạng thái ${snap.badge}',
+            _hrDash(snap),
+            _forceDash(snap),
+            _spo2Dash(snap),
+            _piezoDash(snap),
+            if (snap.alarm) snap.reason,
+          ];
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        color: Colors.black,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: const Color(0xFF24352C)),
+      ),
+      child: DefaultTextStyle(
+        style: const TextStyle(
+          color: Color(0xFFD6FF9A),
+          fontFamily: 'monospace',
+          fontSize: 13,
+          height: 1.35,
+        ),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [for (final line in lines) Text(line)],
+        ),
+      ),
+    );
+  }
+
+  Widget _connectCard() {
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF12201A),
+        borderRadius: BorderRadius.circular(16),
+      ),
+      child: Column(
+        children: [
           Row(
             children: [
               Expanded(
@@ -74,8 +258,8 @@ class _HomePageState extends State<HomePage> {
                   controller: _chip,
                   textCapitalization: TextCapitalization.characters,
                   decoration: const InputDecoration(
-                    labelText: 'Chip ID',
-                    hintText: 'Vi du A1B2C3',
+                    labelText: 'Mã mạch',
+                    hintText: '6 ký tự trên OLED',
                     border: OutlineInputBorder(),
                     isDense: true,
                   ),
@@ -89,95 +273,33 @@ class _HomePageState extends State<HomePage> {
               ),
             ],
           ),
-          const SizedBox(height: 8),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final id in c.discovered)
-                ActionChip(
-                  label: Text(id),
-                  onPressed: () {
-                    _chip.text = id;
-                    c.setChip(id);
-                  },
-                ),
-            ],
-          ),
+          if (c.discovered.isNotEmpty) ...[
+            const SizedBox(height: 8),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Wrap(
+                spacing: 8,
+                children: [
+                  for (final id in c.discovered)
+                    ActionChip(
+                      label: Text(id),
+                      onPressed: () {
+                        _chip.text = id;
+                        c.setChip(id);
+                      },
+                    ),
+                ],
+              ),
+            ),
+          ],
           if (c.lastError.isNotEmpty) ...[
             const SizedBox(height: 8),
-            Text(c.lastError, style: const TextStyle(color: Color(0xFFFF8A80))),
-          ],
-          const SizedBox(height: 8),
-          Row(
-            children: [
-              _dot(snap != null, snap == null ? 'Chua co du lieu' : 'Thiet bi online'),
-              const SizedBox(width: 12),
-              Text(snap == null ? 'Doi OLED...' : 'IP ${snap.ip}  ${snap.rssi} dBm'),
-            ],
-          ),
-          if (snap != null && snap.alarm) ...[
-            const SizedBox(height: 10),
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(12),
-              color: const Color(0xFF8E1E1E),
-              child: Text(
-                snap.reason.isEmpty ? 'CANH BAO' : snap.reason,
-                style: const TextStyle(fontWeight: FontWeight.w700),
-              ),
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Text(c.lastError, style: const TextStyle(color: Color(0xFFFF8A80))),
             ),
           ],
-          const SizedBox(height: 12),
-          Row(
-            children: [
-              const Text('Theo man OLED'),
-              Switch(
-                value: _follow,
-                onChanged: (v) => setState(() {
-                  _follow = v;
-                  if (v && snap != null) _view = snap.screen;
-                }),
-              ),
-            ],
-          ),
-          SizedBox(
-            height: 40,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              children: [
-                for (var i = 0; i < oledScreenTitles.length; i++)
-                  Padding(
-                    padding: const EdgeInsets.only(right: 8),
-                    child: ChoiceChip(
-                      label: Text(oledScreenTitles[i].substring(3)),
-                      selected: _view == i,
-                      onSelected: (_) => setState(() {
-                        _view = i;
-                        _follow = false;
-                      }),
-                    ),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 12),
-          if (snap == null)
-            const _OledFrame(
-              child: Center(
-                child: Text(
-                  'Chua nhan du lieu OLED.\nNhap chip ID tren man hinh ESP32.',
-                  textAlign: TextAlign.center,
-                ),
-              ),
-            )
-          else
-            _OledFrame(child: _OledBody(snap: snap, view: _view, controller: c)),
-          const SizedBox(height: 14),
-          if (snap != null) _MetricGrid(snap: snap),
-          const SizedBox(height: 14),
-          const Text('Nut tren thiet bi'),
-          const SizedBox(height: 8),
+          const SizedBox(height: 10),
           Row(
             children: [
               for (final key in ['MENU', 'UP', 'DOWN', 'ENTER'])
@@ -185,8 +307,15 @@ class _HomePageState extends State<HomePage> {
                   child: Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 3),
                     child: OutlinedButton(
+                      style: OutlinedButton.styleFrom(
+                        padding: const EdgeInsets.symmetric(horizontal: 2, vertical: 12),
+                        minimumSize: Size.zero,
+                        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                      ),
                       onPressed: c.connected ? () => c.sendButton(key) : null,
-                      child: Text(key == 'ENTER' ? 'ENT' : key, style: const TextStyle(fontSize: 12)),
+                      child: FittedBox(
+                        child: Text(key == 'ENTER' ? 'ENT' : key, maxLines: 1, softWrap: false),
+                      ),
                     ),
                   ),
                 ),
@@ -198,202 +327,190 @@ class _HomePageState extends State<HomePage> {
   }
 }
 
-class _OledFrame extends StatelessWidget {
-  const _OledFrame({required this.child});
-  final Widget child;
+class _SensorCard extends StatelessWidget {
+  const _SensorCard({
+    required this.title,
+    required this.value,
+    required this.unit,
+    required this.detail,
+    required this.status,
+    required this.alarm,
+    required this.color,
+    required this.icon,
+    required this.fraction,
+    required this.samples,
+  });
+
+  final String title;
+  final String value;
+  final String unit;
+  final String detail;
+  final String status;
+  final bool alarm;
+  final Color color;
+  final IconData icon;
+  final double fraction;
+  final List<double> samples;
 
   @override
   Widget build(BuildContext context) {
-    return AspectRatio(
-      aspectRatio: 2,
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          color: Colors.black,
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: const Color(0xFF314238)),
-        ),
-        child: Padding(
-          padding: const EdgeInsets.all(10),
-          child: DefaultTextStyle(
-            style: const TextStyle(
-              color: Color(0xFFD6FF9A),
-              fontFamily: 'monospace',
-              fontSize: 13,
-              height: 1.15,
-            ),
-            child: child,
+    final accent = alarm ? const Color(0xFFFF6B7A) : color;
+    final waiting = value == '--';
+    final statusColor = alarm ? const Color(0xFFFF6B7A) : (waiting ? const Color(0xFF8EAEA0) : color);
+    return Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: const Color(0xFF12201A),
+        borderRadius: BorderRadius.circular(18),
+        border: Border.all(color: alarm ? const Color(0xFFFF6B7A) : const Color(0xFF1E3329)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(icon, color: accent, size: 18),
+              const SizedBox(width: 6),
+              Expanded(
+                child: Text(title, style: const TextStyle(color: Color(0xFFB7D0C4), fontSize: 13)),
+              ),
+            ],
           ),
-        ),
+          const Spacer(),
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: Alignment.centerLeft,
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(value, style: TextStyle(fontSize: 40, fontWeight: FontWeight.w800, color: accent, height: 1)),
+                if (unit.isNotEmpty) ...[
+                  const SizedBox(width: 4),
+                  Padding(
+                    padding: const EdgeInsets.only(bottom: 4),
+                    child: Text(unit, style: const TextStyle(color: Color(0xFF8EAEA0), fontSize: 16)),
+                  ),
+                ],
+              ],
+            ),
+          ),
+          const SizedBox(height: 8),
+          ClipRRect(
+            borderRadius: BorderRadius.circular(4),
+            child: LinearProgressIndicator(
+              value: fraction.toDouble(),
+              minHeight: 4,
+              backgroundColor: const Color(0xFF24352C),
+              color: accent,
+            ),
+          ),
+          const SizedBox(height: 8),
+          Text(detail, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 12, color: Color(0xFF8EAEA0))),
+          const SizedBox(height: 4),
+          Text(status, style: TextStyle(fontSize: 12, fontWeight: FontWeight.w700, color: statusColor)),
+          const SizedBox(height: 6),
+          SizedBox(
+            height: 28,
+            width: double.infinity,
+            child: CustomPaint(painter: _Sparkline(samples, accent)),
+          ),
+        ],
       ),
     );
   }
 }
 
-class _OledBody extends StatelessWidget {
-  const _OledBody({
-    required this.snap,
-    required this.view,
-    required this.controller,
-  });
+class _Sparkline extends CustomPainter {
+  _Sparkline(this.samples, this.color);
+  final List<double> samples;
+  final Color color;
 
-  final AidSnapshot snap;
-  final int view;
-  final AidController controller;
+  @override
+  void paint(Canvas canvas, Size size) {
+    if (samples.length < 2) return;
+    var peak = 1.0;
+    for (final v in samples) {
+      if (v > peak) peak = v;
+    }
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 1.6
+      ..style = PaintingStyle.stroke;
+    final path = Path();
+    for (var i = 0; i < samples.length; i++) {
+      final x = size.width * i / (samples.length - 1);
+      final y = size.height - (samples[i].clamp(0, peak) / peak) * (size.height - 2);
+      if (i == 0) {
+        path.moveTo(x, y);
+      } else {
+        path.lineTo(x, y);
+      }
+    }
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(covariant _Sparkline oldDelegate) => true;
+}
+
+class _SectionTitle extends StatelessWidget {
+  const _SectionTitle(this.text);
+  final String text;
 
   @override
   Widget build(BuildContext context) {
-    final title = view == snap.screen && snap.title.isNotEmpty
-        ? snap.title
-        : (view == 0 ? '1. ${snap.id}' : oledScreenTitles[view]);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          children: [
-            Expanded(child: Text(title, maxLines: 1, overflow: TextOverflow.ellipsis)),
-            Text(view == snap.screen ? snap.badge : ''),
-          ],
-        ),
-        const Divider(color: Color(0xFFD6FF9A), height: 8),
-        Expanded(child: _screenBody()),
-      ],
-    );
-  }
-
-  Widget _screenBody() {
-    switch (view) {
-      case 1:
-        return _graphScreen(
-          big: snap.hr > 0 ? snap.hr.toString().padLeft(3) : '---',
-          unit: 'BPM',
-          extra: snap.hr > 0 ? '<3 BEAT' : '   BEAT',
-          line: 'Nguong:${snap.hrMin}-${snap.hrMax}BPM  ${snap.alarmHr ? '[!]' : (snap.hr > 0 ? '[OK]' : '')}',
-          samples: controller.hrTrace,
-          tag: 'ECG',
-        );
-      case 2:
-        return _graphScreen(
-          big: '${snap.force.toStringAsFixed(0).padLeft(3)}%',
-          unit: '~${snap.grams.toStringAsFixed(0)}g',
-          extra: '',
-          line: 'Nguong: >${snap.forceMax}%  ${snap.alarmForce ? '[ALARM!]' : '[OK]'}',
-          samples: controller.forceTrace,
-          tag: 'FSR',
-          maxY: 100,
-        );
-      case 3:
-        if (!snap.maxOnline) {
-          return const Text('CHUA KET NOI IC (I2C1)\nKiem tra day SDA/SCL:\nPin 26 (SDA), 25 (SCL)');
-        }
-        final spo = snap.finger && snap.spo2 > 0 ? '${snap.spo2.toStringAsFixed(0)}%' : '--%';
-        final bpm = snap.finger && snap.spo2Hr > 0 ? '${snap.spo2Hr.toStringAsFixed(0)}bpm' : '--bpm';
-        return _graphScreen(
-          big: spo,
-          unit: 'SpO2  $bpm',
-          extra: '',
-          line: 'Nguong: <${snap.spo2Min}%  ${snap.alarmSpo2 ? '[ALARM!]' : (snap.finger ? '[OK]' : '')}',
-          samples: snap.finger ? controller.spo2Trace : const [],
-          tag: snap.finger ? 'PPG' : 'DAT TAY',
-          maxY: 100,
-        );
-      case 4:
-        return _graphScreen(
-          big: '${snap.piezo.toStringAsFixed(0).padLeft(3)}%',
-          unit: '${snap.volt.toStringAsFixed(2)}V',
-          extra: '',
-          line: 'Nguong: >${snap.piezoMax}%  ${snap.alarmPiezo ? '[ALARM!]' : '[OK]'}',
-          samples: controller.piezoTrace,
-          tag: 'VIB',
-          maxY: 100,
-        );
-      case 5:
-        return _settings();
-      default:
-        return Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Text(_hrDash(snap)),
-            Text(_forceDash(snap)),
-            Text(_spo2Dash(snap)),
-            Text(_piezoDash(snap)),
-            if (snap.alarm)
-              Text(snap.reason, style: const TextStyle(color: Colors.black, backgroundColor: Color(0xFFD6FF9A))),
-          ],
-        );
-    }
-  }
-
-  Widget _graphScreen({
-    required String big,
-    required String unit,
-    required String extra,
-    required String line,
-    required List<double> samples,
-    required String tag,
-    double maxY = 0,
-  }) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text('$big  $unit  $extra', style: const TextStyle(fontSize: 16)),
-        Text(line, maxLines: 1, overflow: TextOverflow.ellipsis),
-        const SizedBox(height: 4),
-        Expanded(
-          child: ClipRect(
-            child: CustomPaint(
-              painter: _TracePainter(
-                samples: samples,
-                oledWave: view == snap.screen ? snap.wave : const [],
-                maxY: maxY,
-                tag: tag,
-              ),
-              child: const SizedBox.expand(),
-            ),
-          ),
-        ),
-      ],
-    );
-  }
-
-  Widget _settings() {
-    const labels = [
-      '1.Luc Max (%)',
-      '2.Nhip tim Min',
-      '3.Nhip tim Max',
-      '4.SpO2 Min (%)',
-      '5.Piezo Max(%)',
-      '6.Coi bao (BZ)',
-    ];
-    final values = [
-      '${snap.forceMax}%',
-      '${snap.hrMin}',
-      '${snap.hrMax}',
-      '${snap.spo2Min}%',
-      '${snap.piezoMax}%',
-      snap.buzzerOn ? 'BAT' : 'TAT',
-    ];
-    var start = 0;
-    if (snap.cursor >= 3) {
-      start = snap.cursor - 2;
-      if (start > 2) start = 2;
-    }
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        for (var i = 0; i < 4; i++)
-          Text(
-            '${start + i == snap.cursor ? (snap.editing ? '*' : '>') : ' '} ${labels[start + i]}: ${values[start + i]}',
-          ),
-        Text(snap.editing ? 'UP/DOWN:Doi | ENT:Luu' : 'UP/DN:Chon | ENT:Sua'),
-      ],
-    );
+    return Text(text, style: const TextStyle(fontWeight: FontWeight.w700, color: Color(0xFFD7EBE1)));
   }
 }
 
+Widget _pill(String text, bool on) {
+  return Container(
+    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+    decoration: BoxDecoration(
+      color: const Color(0xFF12201A),
+      borderRadius: BorderRadius.circular(20),
+    ),
+    child: Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(Icons.circle, size: 8, color: on ? const Color(0xFF3DDC97) : const Color(0xFFFF8A80)),
+        const SizedBox(width: 6),
+        Text(text, style: const TextStyle(fontSize: 12)),
+      ],
+    ),
+  );
+}
+
+String _hrStatus(AidSnapshot? snap) {
+  if (snap == null) return 'Chờ mạch';
+  if (snap.alarmHr) return 'Ngoài ngưỡng';
+  if (snap.hr > 0) return 'Ổn';
+  return 'Chưa có nhịp';
+}
+
+String _spo2Value(AidSnapshot? snap) {
+  if (snap == null || !snap.maxOnline) return '--';
+  if (!snap.finger || snap.spo2 <= 0) return '--';
+  return snap.spo2.toStringAsFixed(0);
+}
+
+String _spo2Detail(AidSnapshot? snap) {
+  if (snap == null) return 'Ngưỡng dưới 92%';
+  if (!snap.maxOnline) return 'Chưa thấy IC MAX3010x';
+  if (!snap.finger) return 'Chưa đặt tay';
+  return '${snap.spo2Hr.toStringAsFixed(0)} bpm · ngưỡng < ${snap.spo2Min}%';
+}
+
+String _spo2Status(AidSnapshot? snap) {
+  if (snap == null) return 'Chờ mạch';
+  if (!snap.maxOnline) return 'Không có IC';
+  if (!snap.finger) return 'Chưa đặt tay';
+  if (snap.alarmSpo2) return 'Thiếu oxy';
+  return 'Ổn';
+}
+
 String _hrDash(AidSnapshot s) {
-  if (s.hr > 0) {
-    return 'N.Tim: ${s.hr.toString().padLeft(3)} bpm${s.alarmHr ? ' !' : ''}';
-  }
+  if (s.hr > 0) return 'N.Tim: ${s.hr.toString().padLeft(3)} bpm${s.alarmHr ? ' !' : ''}';
   return 'N.Tim: --- bpm';
 }
 
@@ -414,122 +531,4 @@ String _spo2Dash(AidSnapshot s) {
 String _piezoDash(AidSnapshot s) {
   final pct = s.piezo.toStringAsFixed(0).padLeft(3);
   return 'Piezo: $pct% (${s.volt.toStringAsFixed(2)}V)${s.alarmPiezo ? ' !' : ''}';
-}
-
-class _TracePainter extends CustomPainter {
-  _TracePainter({
-    required this.samples,
-    required this.oledWave,
-    required this.maxY,
-    required this.tag,
-  });
-
-  final List<double> samples;
-  final List<int> oledWave;
-  final double maxY;
-  final String tag;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final frame = Paint()
-      ..color = const Color(0xFFD6FF9A)
-      ..style = PaintingStyle.stroke
-      ..strokeWidth = 1;
-    canvas.drawRect(Offset.zero & size, frame);
-    final paint = Paint()
-      ..color = const Color(0xFFD6FF9A)
-      ..strokeWidth = 1.4
-      ..style = PaintingStyle.stroke;
-
-    if (oledWave.length >= 2) {
-      final path = Path();
-      for (var i = 0; i < oledWave.length; i++) {
-        final x = size.width * i / (oledWave.length - 1);
-        final yNorm = ((oledWave[i] - 36) / 26).clamp(0.0, 1.0);
-        final y = yNorm * (size.height - 4) + 2;
-        if (i == 0) {
-          path.moveTo(x, y);
-        } else {
-          path.lineTo(x, y);
-        }
-      }
-      canvas.drawPath(path, paint);
-    } else if (samples.length >= 2) {
-      final path = Path();
-      final peak = maxY > 0 ? maxY : samples.reduce((a, b) => a > b ? a : b).clamp(1, 10000);
-      for (var i = 0; i < samples.length; i++) {
-        final x = size.width * i / (samples.length - 1);
-        final y = size.height - 2 - (samples[i].clamp(0, peak) / peak) * (size.height - 6);
-        if (i == 0) {
-          path.moveTo(x, y);
-        } else {
-          path.lineTo(x, y);
-        }
-      }
-      canvas.drawPath(path, paint);
-    }
-
-    final tp = TextPainter(
-      text: TextSpan(text: tag, style: const TextStyle(color: Color(0xFFD6FF9A), fontSize: 10, fontFamily: 'monospace')),
-      textDirection: TextDirection.ltr,
-    )..layout();
-    tp.paint(canvas, Offset(size.width - tp.width - 4, 2));
-  }
-
-  @override
-  bool shouldRepaint(covariant _TracePainter oldDelegate) => true;
-}
-
-class _MetricGrid extends StatelessWidget {
-  const _MetricGrid({required this.snap});
-  final AidSnapshot snap;
-
-  @override
-  Widget build(BuildContext context) {
-    final items = [
-      ('Nhip tim', snap.hr > 0 ? '${snap.hr} bpm' : '---', 'ADC ${snap.hrAdc}'),
-      ('Luc', '${snap.force.toStringAsFixed(0)}%', '${snap.grams.toStringAsFixed(0)} g'),
-      ('SpO2', snap.maxOnline ? (snap.finger ? '${snap.spo2.toStringAsFixed(0)}%' : 'Chua dat tay') : 'Khong co IC', '${snap.spo2Hr.toStringAsFixed(0)} bpm'),
-      ('Piezo', '${snap.piezo.toStringAsFixed(0)}%', '${snap.volt.toStringAsFixed(2)} V'),
-      ('Coi', snap.buzzerOn ? (snap.mute ? 'MUTE' : 'BAT') : 'TAT', snap.badge),
-      ('Nguong', 'HR ${snap.hrMin}-${snap.hrMax}', 'SpO2 < ${snap.spo2Min}%'),
-    ];
-    return GridView.count(
-      crossAxisCount: 2,
-      shrinkWrap: true,
-      physics: const NeverScrollableScrollPhysics(),
-      childAspectRatio: 2.4,
-      mainAxisSpacing: 8,
-      crossAxisSpacing: 8,
-      children: [
-        for (final item in items)
-          Container(
-            padding: const EdgeInsets.all(10),
-            decoration: BoxDecoration(
-              color: const Color(0xFF18211C),
-              borderRadius: BorderRadius.circular(10),
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(item.$1, style: const TextStyle(color: Color(0xFF8FB9A4), fontSize: 12)),
-                Text(item.$2, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-                Text(item.$3, style: const TextStyle(fontSize: 12)),
-              ],
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-Widget _dot(bool on, String label) {
-  return Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Icon(Icons.circle, size: 10, color: on ? const Color(0xFF3DDC97) : const Color(0xFFFF8A80)),
-      const SizedBox(width: 6),
-      Text(label),
-    ],
-  );
 }

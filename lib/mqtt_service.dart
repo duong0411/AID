@@ -46,6 +46,18 @@ class AidController extends ChangeNotifier {
     } catch (_) {}
   }
 
+  void preview(AidSnapshot next) {
+    chipId = next.id;
+    snapshot = next;
+    deviceOnline = 'online';
+    discovered.add(next.id);
+    _pushTrace(hrTrace, next.hr.toDouble());
+    _pushTrace(forceTrace, next.force);
+    _pushTrace(spo2Trace, next.spo2);
+    _pushTrace(piezoTrace, next.piezo);
+    notifyListeners();
+  }
+
   Future<void> setChip(String value) async {
     chipId = value.trim().toUpperCase();
     snapshot = null;
@@ -154,14 +166,12 @@ class AidController extends ChangeNotifier {
     if (parts.length < 3 || parts.first != 'tele') return;
     final id = parts[1].toUpperCase();
     if (id.isEmpty) return;
-    discovered.add(id);
 
     if (topic.endsWith('/status')) {
-      if (chipId.isEmpty || chipId == id) {
-        if (chipId.isEmpty) chipId = id;
+      if (chipId.isNotEmpty && chipId == id) {
         deviceOnline = payload.trim().toLowerCase();
+        notifyListeners();
       }
-      notifyListeners();
       return;
     }
 
@@ -177,7 +187,11 @@ class AidController extends ChangeNotifier {
     if (json == null) return;
     final next = AidSnapshot.fromJson(json);
     if (next == null) return;
-    if (chipId.isNotEmpty && next.id != chipId) return;
+    discovered.add(next.id);
+    if (chipId.isNotEmpty && next.id != chipId) {
+      notifyListeners();
+      return;
+    }
     if (chipId.isEmpty) chipId = next.id;
     snapshot = next;
     deviceOnline = 'online';
